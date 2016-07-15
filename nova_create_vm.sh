@@ -1,14 +1,14 @@
 #!/bin/sh
 source ./env.sh
-image='d45637a0-7d10-4da8-977c-aad96a8c60ba'
-flavor='npe-test-007'
+image='3f8b5148-e184-42e9-8b80-afbf5a79bc2c'
+flavor='npe-test-8c-16g'
 vpc_vnet='5dc128af-99e3-477e-b32e-5aae2ac7fa7b'
 vpc_sg='32366547-1759-4f30-be7e-68f4a32c5d6a'
 # If you need to use specific ip, please add replace ${vpc_ip} with \"${vpc_ip}\" in the curl command
 vpc_ip=null
 storage_location='ssd'
 vm_name=$1
-az='ksc_tjwq_zone1001_aggregate_raidssd_1001:tjwq01-cp-compute008200.tjwq01.ksyun.com'
+az='ksc_tjwq_zone1001_aggregate_raidssd_1001:tjwq01-cp-compute004028.tjwq01.ksyun.com'
 password='123'
 is_vpc_instance=1
 #create vpc vm
