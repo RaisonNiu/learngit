@@ -31,7 +31,7 @@ int set_affinity(char *ifname, int queues)
 
 	for(i = 0; i < queues; i++)
 	{
-		mask = (1 << i );
+		mask = (2 << i );
 		
 		sprintf(cmd, "cat /proc/interrupts | grep -i %s-input.%d | cut  -d:  -f1 | sed \"s/ //g\"", ifname, i);
 		
@@ -99,7 +99,7 @@ int get_check_if()
 		memset(cmd, 0, 512);
 		memset(buffer, 0, 80);
 		
-		if(strcmp("eth0", ifreq->ifr_name) == 0)
+		if(strncmp("eth0", ifreq->ifr_name, 4) != 0)
 		{
 			ifreq++;
 			continue;

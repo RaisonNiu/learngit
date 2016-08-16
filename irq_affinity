@@ -49,7 +49,6 @@ if [ "$1" = "" ] ; then
 	echo "    $0 eth0 [eth1 eth2 eth3]"
 fi
 
-
 # check for irqbalance running
 IRQBALANCE_ON=`ps ax | grep -v grep | grep -q irqbalance; echo $?`
 if [ "$IRQBALANCE_ON" == "0" ] ; then
@@ -90,4 +89,3 @@ do
 		done
 	done
 done
-
