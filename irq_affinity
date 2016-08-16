@@ -26,15 +26,17 @@ INDEX64=$((1<<63))
 
 set_affinity()
 {
-        MASK=$((2<<$VEC))
+	MASK=$((2<<$VEC))
         MASK_EXT=
 
         if [ $MASK -le ${INDEX32} ]
         then
-                echo $MASK > /proc/irq/$IRQ/smp_affinity
+                printf "%s mask=%X for /proc/irq/%d/smp_affinity\n" $DEV $MASK $IRQ
+                printf "%X" $MASK > /proc/irq/$IRQ/smp_affinity
         else
                 MASK=$(($MASK>>32))
                 MASK_EXT=`printf "%X,00000000" $MASK`
+                printf "%s mask=%s for /proc/irq/%d/smp_affinity\n" $DEV $MASK_EXT $IRQ
                 echo $MASK_EXT > /proc/irq/$IRQ/smp_affinity
         fi
 }
