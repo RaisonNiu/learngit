@@ -1,0 +1,215 @@
+diff -ruN a/src/qemu/qemu_driver.c b/src/qemu/qemu_driver.c
+--- a/src/qemu/qemu_driver.c	2017-06-06 14:11:13.431379428 +0800
++++ b/src/qemu/qemu_driver.c	2017-06-06 14:35:42.633802871 +0800
+@@ -136,6 +136,11 @@
+ 
+ #define QEMU_NB_BANDWIDTH_PARAM 6
+ 
++#define VGW_TYPE_PATH "/home/work/dpvgw/vgw_type"
++#define DPVGW "dpvgw"
++#define LINE_LEN 250
++int dpvgw = 0;
++
+ static void processWatchdogEvent(virQEMUDriverPtr driver,
+                                  virDomainObjPtr vm,
+                                  int action);
+@@ -1557,6 +1562,75 @@
+     return 0;
+ }
+ 
++/* wrapper to the virDomainDefParseString
++ * 1.modify def->hugepage_backed = true,
++ * def->nets[i]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER
++ * when define/create a new vm on dpdk vgw host
++ */
++static virDomainDefPtr VU_virDomainDefParseString(
++			const char *xmlStr,
++                        virCapsPtr caps,
++                        virDomainXMLOptionPtr xmlopt,
++                        unsigned int expectedVirtTypes,
++                        unsigned int flags )
++{
++    virDomainDefPtr def = NULL;
++    FILE *fp = NULL;
++    char s[254];
++    int i = 0;
++
++    if (!(def = virDomainDefParseString(xmlStr, caps, xmlopt,
++                                        expectedVirtTypes,
++                                        flags)))
++		return NULL;
++
++    if(dpvgw == 0){
++        if ((fp = fopen(VGW_TYPE_PATH, "r")) != NULL) {
++           while((fgets(s, LINE_LEN, fp)) != NULL)
++           {
++                if(strstr(s, DPVGW) != NULL)
++                {
++                        dpvgw = 1;
++
++                        if(!def->mem.hugepage_backed)
++                                def->mem.hugepage_backed = true;
++
++                        for(i = 0; i < def->nnets; i++){
++                                if (def->nets[i]->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
++                                                          STREQ_NULLABLE(def->nets[i]->model, "virtio")){
++                                                if(def->nets[i]->driver.virtio.name !=
++                                                        VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER)
++                                                def->nets[i]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER;
++                                }//end if
++                        }//end for
++                        break;
++                }//end if
++           }//end while
++
++           if(dpvgw == 0)
++               dpvgw = 2; //kvgw
++
++           fclose(fp);
++         } else {
++               dpvgw = 2;//kvgw
++         } // fp = NULL
++    } else if(dpvgw == 1){
++
++          if(!def->mem.hugepage_backed)
++               def->mem.hugepage_backed = true;
++
++          for(i = 0; i < def->nnets; i++){
++               if (def->nets[i]->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
++                           STREQ_NULLABLE(def->nets[i]->model, "virtio")){
++                               if(def->nets[i]->driver.virtio.name !=
++                                          VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER)
++                       def->nets[i]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER;
++               }
++          }
++    }
++
++    return def;
++}
+ 
+ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
+                                         const char *xml,
+@@ -1570,7 +1644,7 @@
+     unsigned int start_flags = VIR_QEMU_PROCESS_START_COLD;
+     virQEMUCapsPtr qemuCaps = NULL;
+     virCapsPtr caps = NULL;
+-
++    
+     virCheckFlags(VIR_DOMAIN_START_PAUSED |
+                   VIR_DOMAIN_START_AUTODESTROY, NULL);
+ 
+@@ -1584,7 +1658,7 @@
+     if (!(caps = virQEMUDriverGetCapabilities(driver, false)))
+         goto cleanup;
+ 
+-    if (!(def = virDomainDefParseString(xml, caps, driver->xmlopt,
++    if (!(def = VU_virDomainDefParseString(xml, caps, driver->xmlopt,
+                                         QEMU_EXPECTED_VIRT_TYPES,
+                                         VIR_DOMAIN_XML_INACTIVE)))
+         goto cleanup;
+@@ -6266,7 +6340,7 @@
+     if (!(caps = virQEMUDriverGetCapabilities(driver, false)))
+         goto cleanup;
+ 
+-    if (!(def = virDomainDefParseString(xml, caps, driver->xmlopt,
++    if (!(def = VU_virDomainDefParseString(xml, caps, driver->xmlopt,
+                                         QEMU_EXPECTED_VIRT_TYPES,
+                                         VIR_DOMAIN_XML_INACTIVE)))
+         goto cleanup;
+@@ -10750,6 +10824,12 @@
+     if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname, &origname)))
+         goto cleanup;
+ 
++    int n = 0;
++    def->mem.hugepage_backed = true;
++    for (n = 0; n < def->nnets; n++){
++        def->nets[n]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER;
++    }
++
+     if (virDomainMigratePrepare3ParamsEnsureACL(dconn, def) < 0)
+         goto cleanup;
+ 
+diff -ruN a/src/qemu/qemu_migration.c b/src/qemu/qemu_migration.c
+--- a/src/qemu/qemu_migration.c	2017-06-06 14:11:13.432379439 +0800
++++ b/src/qemu/qemu_migration.c	2017-06-06 14:36:09.272091429 +0800
+@@ -499,13 +499,20 @@
+     if (!dom->newDef)
+         return 0;
+ 
++   int n = 0;
++
++   if(dom->newDef->mem.hugepage_backed)
++              dom->newDef->mem.hugepage_backed  = false;
++
++   for (n = 0; n < dom->newDef->nnets; n++)
++              dom->newDef->nets[n]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOST;
++
+     mig->persistent = dom->newDef;
+     mig->flags |= QEMU_MIGRATION_COOKIE_PERSISTENT;
+     mig->flagsMandatory |= QEMU_MIGRATION_COOKIE_PERSISTENT;
+     return 0;
+ }
+ 
+-
+ static int
+ qemuMigrationCookieAddNetwork(qemuMigrationCookiePtr mig,
+                               virQEMUDriverPtr driver,
+@@ -1106,6 +1113,13 @@
+              * an error for us */
+             goto error;
+         }
++
++	if(!mig->persistent->mem.hugepage_backed)
++		mig->persistent->mem.hugepage_backed = true;
++
++	for(i = 0; i < mig->persistent->nnets; i++)
++		mig->persistent->nets[i]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER;
++
+         VIR_FREE(nodes);
+     }
+ 
+@@ -2246,6 +2260,7 @@
+     virCapsPtr caps = NULL;
+     unsigned int cookieFlags = QEMU_MIGRATION_COOKIE_LOCKSTATE;
+     bool abort_on_error = !!(flags & VIR_MIGRATE_ABORT_ON_ERROR);
++    int n;
+ 
+     VIR_DEBUG("driver=%p, vm=%p, xmlin=%s, dname=%s,"
+               " cookieout=%p, cookieoutlen=%p, flags=%lx",
+@@ -2311,6 +2326,7 @@
+     }
+ 
+     if (xmlin) {
++
+         if (!(def = virDomainDefParseString(xmlin, caps, driver->xmlopt,
+                                             QEMU_EXPECTED_VIRT_TYPES,
+                                             VIR_DOMAIN_XML_INACTIVE)))
+@@ -2319,9 +2335,28 @@
+         if (!qemuDomainDefCheckABIStability(driver, vm->def, def))
+             goto cleanup;
+ 
++	if(def->mem.hugepage_backed)
++            def->mem.hugepage_backed  = false;
++
++        for (n = 0; n < def->nnets; n++){
++            def->nets[n]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOST;
++        }
+         rv = qemuDomainDefFormatLive(driver, def, false, true);
++
++        def->mem.hugepage_backed  = true;
++        for (n = 0; n < def->nnets; n++){
++            def->nets[n]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER;
++        }
+     } else {
++        if(vm->def->mem.hugepage_backed)
++            vm->def->mem.hugepage_backed  = false;
++        for (n = 0; n < vm->def->nnets; n++)
++            vm->def->nets[n]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOST;
+         rv = qemuDomainDefFormatLive(driver, vm->def, false, true);
++        vm->def->mem.hugepage_backed  = true;
++        for (n = 0; n < vm->def->nnets; n++){
++            vm->def->nets[n]->driver.virtio.name = VIR_DOMAIN_NET_BACKEND_TYPE_VHOSTUSER;
++        }
+     }
+ 
+ cleanup:
