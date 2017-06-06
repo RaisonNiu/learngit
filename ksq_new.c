@@ -35,14 +35,13 @@ int set_affinity(char *ifname, int queues)
 
 	for(i = 0; i < queues; i++)
 	{
-		mask = (2 << i );
+		mask = (1 << i );
 		
 		sprintf(cmd, "cat /proc/interrupts | grep -i %s-input.%d | cut  -d:  -f1 | sed \"s/ //g\"", ifname, i);
 		
 		fp = popen(cmd,"r"); 
 		fgets(buffer,sizeof(buffer),fp);
 		
-		printf("%s",buffer); 
 		irq = atoi(buffer);
 		
 		pclose(fp); 
@@ -62,7 +61,6 @@ int set_affinity(char *ifname, int queues)
 		fp = popen(cmd,"r"); 
 		fgets(buffer,sizeof(buffer),fp);
 		
-		printf("%s",buffer); 
 		irq = atoi(buffer);
 		
 		pclose(fp); 
@@ -117,7 +115,6 @@ int get_check_if()
 		fp=popen(cmd,"r"); 
 		fgets(buffer,sizeof(buffer),fp);
 		
-		printf("%s",buffer); 
 		queue = atoi(buffer); 
 	
 		if(queue == 1)
@@ -130,7 +127,6 @@ int get_check_if()
 		memset(cmd, 0, 512);
 
 		sprintf(cmd, "ethtool -L %s combined %d", ifreq->ifr_name, queue);
-                printf("cmd is %s\n", cmd);
 
 		ret = system(cmd);
 		CHECK_STATUS(ret);
@@ -241,8 +237,6 @@ int main()
                 fp = popen(cmd,"r");
                 fgets(buffer,DEV_LEN,fp);
 
-                printf("device is %s",buffer);
-
 		if(strncmp("eth0", buffer, 4) == 0){ /*the eth0 device has already been drivered*/
 			if(is_up("eth0") == 1) /* but it's not up*/
 			{	
@@ -250,7 +244,6 @@ int main()
                			sprintf(cmd, "ifup eth0");
 	       			system(cmd);
 	       			sleep(1);
-               			printf("%s ifup ok",buffer);
 	       			break;
 	        	}
 			else
