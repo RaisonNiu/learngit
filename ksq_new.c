@@ -26,7 +26,7 @@
 int set_affinity(char *ifname, int queues)
 {
 	FILE * fp;
-        int i=0;
+    int i=0;
 	char cmd[512] = {0};
 	char buffer[80] = {0};
 	int irq;
@@ -77,72 +77,72 @@ int set_affinity(char *ifname, int queues)
 int get_check_if()
 {
 	FILE * fp;
-        int i=0;
-        int sockfd;
-        struct ifconf ifconf;
-        unsigned char buf[512] = {0};
+    int i=0;
+    int sockfd;
+    struct ifconf ifconf;
+    unsigned char buf[512] = {0};
 	char cmd[512] = {0};
-        struct ifreq *ifreq;
+    struct ifreq *ifreq;
 	char buffer[80] = {0};
 	int queue;
 	int ret; 
 
-        ifconf.ifc_len = 512;
-        ifconf.ifc_buf = buf;
+    ifconf.ifc_len = 512;
+    ifconf.ifc_buf = buf;
 
-        if((sockfd = socket(AF_INET, SOCK_DGRAM, 0))<0)
-        {
-                perror("socket");
-                exit(1);
-        }
+    if((sockfd = socket(AF_INET, SOCK_DGRAM, 0))<0)
+    {
+            perror("socket");
+            exit(1);
+    }
 
-        ioctl(sockfd, SIOCGIFCONF, &ifconf);
+    ioctl(sockfd, SIOCGIFCONF, &ifconf);
 
-        ifreq = (struct ifreq*)buf;
-        for(i = (ifconf.ifc_len/sizeof(struct ifreq)); i > 0; i--)
-        {
-		memset(cmd, 0, 512);
-		memset(buffer, 0, 80);
-		
-		if(strncmp("eth0", ifreq->ifr_name, 4) != 0)
-		{
-			ifreq++;
-			continue;
-		}
-
-		sprintf(cmd, "ethtool -l %s | grep Combined | awk '{print $2}'", ifreq->ifr_name);
-		
-		fp=popen(cmd,"r"); 
-		fgets(buffer,sizeof(buffer),fp);
-		
-		queue = atoi(buffer); 
+    ifreq = (struct ifreq*)buf;
+    for(i = (ifconf.ifc_len/sizeof(struct ifreq)); i > 0; i--)
+    {
+	    memset(cmd, 0, 512);
+	    memset(buffer, 0, 80);
 	
-		if(queue == 1)
-		{
-			ifreq++;
-			pclose(fp); 
-			continue;
-		}
+	    if(strncmp("eth0", ifreq->ifr_name, 4) != 0)
+	    {
+		    ifreq++;
+		    continue;
+	    }
 
-		memset(cmd, 0, 512);
+	    sprintf(cmd, "ethtool -l %s | grep Combined | awk '{print $2}'", ifreq->ifr_name);
+	
+	    fp=popen(cmd,"r"); 
+	    fgets(buffer,sizeof(buffer),fp);
+	
+	    queue = atoi(buffer); 
 
-		sprintf(cmd, "ethtool -L %s combined %d", ifreq->ifr_name, queue);
+	    if(queue == 1)
+	    {
+		    ifreq++;
+		    pclose(fp); 
+		    continue;
+	    }
 
-		ret = system(cmd);
-		CHECK_STATUS(ret);
+	    memset(cmd, 0, 512);
 
-		set_affinity("virtio0", queue);
-		
-		pclose(fp); 
-                ifreq++;
-        }
+	    sprintf(cmd, "ethtool -L %s combined %d", ifreq->ifr_name, queue);
+
+	    ret = system(cmd);
+	    CHECK_STATUS(ret);
+
+	    set_affinity("virtio0", queue);
+	
+	    pclose(fp); 
+        ifreq++;
+    }
 	
 	memset(cmd, 0, 512);
 	sprintf(cmd, "service irqbalance stop");
 
 	system(cmd);
 
-        return 0;
+    return 0;
 }
 
 int daemon_init(void)
@@ -184,30 +184,29 @@ struct ethtool_value {
 
 int is_up(char *dev)
 {
-    	struct ethtool_value edata;
-    	int fd = -1, err = 0;
-    	struct ifreq ifr;
+    struct ethtool_value edata;
+    int fd = -1, err = 0;
+    struct ifreq ifr;
 
-    	memset(&ifr, 0, sizeof(ifr));
-    	strcpy(ifr.ifr_name, dev);
-    	fd = socket(AF_INET, SOCK_DGRAM, 0);
-    	if (fd < 0) {
-            	syslog(LOG_INFO, "ksq:Cannot get control socket\n");
-            	return 1;
-    	}
+    memset(&ifr, 0, sizeof(ifr));
+    strcpy(ifr.ifr_name, dev);
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+    	syslog(LOG_INFO, "ksq:Cannot get control socket\n");
+    	return 1;
+    }
 
-    	edata.cmd = 0x0000000a;
-    	ifr.ifr_data = (caddr_t)&edata;
-    	err = ioctl(fd, 0x8946, &ifr);
-    	if (err == 0) {
-    		return 0;
-            	/*Link detected*/
-    	} else if (errno != EOPNOTSUPP) {
-            	/*not get link status */
-    		return 1;
-    	}
+    edata.cmd = 0x0000000a;
+    ifr.ifr_data = (caddr_t)&edata;
+    err = ioctl(fd, 0x8946, &ifr);
+    if (err == 0) {
+	    return 0;
+    	/*Link detected*/
+    } else if (errno != EOPNOTSUPP) {
+    	/*not get link status */
+	    return 1;
+    }
 }
-
 
 int main()
 {
@@ -217,41 +216,41 @@ int main()
 	char buffer[80] = {0};
         
 	if(daemon_init() == -1)
-        {
-                syslog(LOG_INFO, "ksq can't fork self\n");
-                exit(0);
-        }
+    {
+        syslog(LOG_INFO, "ksq can't fork self\n");
+        exit(0);
+    }
 
-        openlog("ksq", LOG_PID, LOG_USER);
+    openlog("ksq", LOG_PID, LOG_USER);
 
-        syslog(LOG_INFO, "program started.");
+    syslog(LOG_INFO, "program started.");
         
 	signal(SIGTERM, sig_term); /* arrange to catch the signal */
 
 	while(1)
-        {
-		memset(cmd, 0, 512);
-                memset(buffer, 0, 80);
-                sprintf(cmd, "ls /sys/class/net | grep eth0");
+    {
+	    memset(cmd, 0, 512);
+        memset(buffer, 0, 80);
+        sprintf(cmd, "ls /sys/class/net | grep eth0");
 	
-                fp = popen(cmd,"r");
-                fgets(buffer,DEV_LEN,fp);
+        fp = popen(cmd,"r");
+        fgets(buffer,DEV_LEN,fp);
 
 		if(strncmp("eth0", buffer, 4) == 0){ /*the eth0 device has already been drivered*/
 			if(is_up("eth0") == 1) /* but it's not up*/
-			{	
+			{
 				memset(cmd, 0, 512);
-               			sprintf(cmd, "ifup eth0");
-	       			system(cmd);
-	       			sleep(1);
-	       			break;
-	        	}
+               	sprintf(cmd, "ifup eth0");
+	       		system(cmd);
+	       		sleep(1);
+	       		break;
+	        }
 			else
 				break;	
 		}
 		else
 			sleep(1);
-        }
+    }
 
 	ret = get_check_if();
 	if (ret != 0)
